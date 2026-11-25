@@ -1,5 +1,5 @@
-import type { DominoDocument, Piece, SimulationEvent } from '@/shared/document'
-import { nextContact } from '@/features/layout'
+import type { ContactRecord, DominoDocument, Piece, SimulationEvent } from '@/shared/document'
+import { contactCandidates } from '@/features/layout/lib/geometry'
 
 interface Scheduled {
   pieceId: string
@@ -12,6 +12,7 @@ export function propagate(document: DominoDocument) {
   const queue: Scheduled[] = [{ pieceId: document.startPieceId, time: 0, causeId: null, detail: '手动触发' }]
   const fallen = new Set<string>()
   const events: SimulationEvent[] = []
+  const contacts: ContactRecord[] = []
   let interruptedPieceId: string | null = null
   let interruptionReason: string | null = null
   let reachedTrigger = false
@@ -51,12 +52,33 @@ export function propagate(document: DominoDocument) {
     const available = document.pieces.filter(item => !fallen.has(item.id) && item.id !== piece.id)
     const surfaceGrip = (document.scene.friction + piece.friction) / 2
     const reachScale = (0.94 + surfaceGrip * 0.35) * (1.25 - piece.fallThreshold * 0.25)
+    const hasConnection = document.connections.some(link => link.from === piece.id && link.enabled)
     let target: Piece | null = null
     if (piece.kind === 'ramp') {
-      target = available.filter(item => item.x > piece.x && Math.abs(item.y - piece.y) < 2.1)
-        .sort((a, b) => a.x - b.x || a.id.localeCompare(b.id))[0] ?? null
+      const ranked = available.filter(item => item.x > piece.x && Math.abs(item.y - piece.y) < 2.1)
+        .sort((a, b) => a.x - b.x || a.id.localeCompare(b.id))
+      target = ranked[0] ?? null
+      contacts.push({
+        pieceId: piece.id, eventId: event.id, targetId: target?.id ?? null,
+        via: target ? 'geometry' : hasConnection ? 'connection' : 'none',
+        reach: null, cone: null,
+        chosen: target ? { pieceId: target.id, distance: Math.hypot(piece.x - target.x, piece.y - target.y), alignment: 0 } : null,
+        alternatives: ranked.slice(1, 4).map(item => ({
+          pieceId: item.id, distance: Math.hypot(piece.x - item.x, piece.y - item.y), alignment: 0,
+        })),
+      })
     } else {
-      target = nextContact(piece, available, reachScale)
+      const ranked = contactCandidates(piece, available, reachScale)
+      target = ranked[0]?.piece ?? null
+      contacts.push({
+        pieceId: piece.id, eventId: event.id, targetId: target?.id ?? null,
+        via: target ? 'geometry' : hasConnection ? 'connection' : 'none',
+        reach: piece.height * 1.18 * reachScale, cone: 47,
+        chosen: ranked[0] ? { pieceId: ranked[0].piece.id, distance: ranked[0].distance, alignment: ranked[0].alignment } : null,
+        alternatives: ranked.slice(1, 4).map(entry => ({
+          pieceId: entry.piece.id, distance: entry.distance, alignment: entry.alignment,
+        })),
+      })
     }
     if (target) {
       const separation = Math.hypot(piece.x - target.x, piece.y - target.y)
@@ -68,7 +90,6 @@ export function propagate(document: DominoDocument) {
       })
     }
 
-    const hasConnection = document.connections.some(link => link.from === piece.id && link.enabled)
     if (!target && !hasConnection && interruptedPieceId === null) {
       interruptedPieceId = piece.id
       interruptionReason = '倒下方向内没有可触达的元件，链路在此停止。'
@@ -81,6 +102,7 @@ export function propagate(document: DominoDocument) {
 
   return {
     events,
+    contacts,
     interruptedPieceId,
     interruptionReason,
     reachedTrigger,

@@ -62,6 +62,10 @@ export function useLayout(document: Ref<DominoDocument>, changed: () => void) {
       ...document.value,
       pieces,
       connections: document.value.connections.filter(link => link.from !== id && link.to !== id),
+      goals: {
+        windows: document.value.goals.windows.filter(window => window.pieceId !== id),
+        orders: document.value.goals.orders.filter(order => order.beforeId !== id && order.afterId !== id),
+      },
       startPieceId: document.value.startPieceId === id ? pieces[0]?.id ?? '' : document.value.startPieceId,
     }
     if (selectedId.value === id) selectedId.value = null

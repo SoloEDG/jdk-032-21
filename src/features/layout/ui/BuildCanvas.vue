@@ -6,6 +6,7 @@ import type { DominoDocument, Piece, PieceKind, SimulationRun } from '@/shared/d
 const props = defineProps<{
   document: DominoDocument; activeTool: PieceKind | null; selectedId: string | null
   run: SimulationRun | null; focusPieceId: string | null
+  sharedIds?: string[]; sensitiveIds?: string[]
 }>()
 const emit = defineEmits<{
   place: [PieceKind, number, number]; select: [string | null]; move: [string, number, number]
@@ -14,6 +15,8 @@ const svg = ref<SVGSVGElement | null>(null)
 const view = { width: 1040, height: 510, margin: 35 }
 const fallen = computed(() => new Set(props.run?.events.filter(event => event.kind === 'fall').map(event => event.pieceId) ?? []))
 const failed = computed(() => props.run?.interruptedPieceId ?? null)
+const shared = computed(() => new Set(props.sharedIds ?? []))
+const sensitive = computed(() => new Set(props.sensitiveIds ?? []))
 let dragging: string | null = null
 
 function worldPoint(event: PointerEvent) {
@@ -107,6 +110,10 @@ function eventTime(pieceId: string) {
         <line v-if="piece.kind === 'domino'" x1="0" y1="-15" x2="0" y2="14" class="domino-mark" />
         <circle v-if="piece.id === document.startPieceId" cy="-28" r="4" class="start-marker" />
         <circle v-if="piece.id === failed" cy="-34" r="7" class="failure-marker" />
+        <circle v-if="shared.has(piece.id)" cx="14" cy="-21" r="4" class="shared-marker"
+          :class="{ sensitive: sensitive.has(piece.id) }">
+          <title>共享上游牌{{ sensitive.has(piece.id) ? ' · 触点易被几何调整改变' : '' }}</title>
+        </circle>
         <text y="32" text-anchor="middle" class="piece-label">{{ piece.label }}</text>
         <text v-if="eventTime(piece.id)" y="44" text-anchor="middle" class="piece-time">{{ eventTime(piece.id) }}s</text>
         <rect v-if="selectedId === piece.id || focusPieceId === piece.id" x="-18" y="-28" width="36" height="55" rx="8" class="selection-ring" />

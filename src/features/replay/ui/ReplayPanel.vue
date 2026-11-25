@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle2, CircleStop, FastForward, Pause, Play, RotateCcw, SkipBack } from '@lucide/vue'
+import { computed } from 'vue'
+import { AlertTriangle, CheckCircle2, CircleStop, Crosshair, FastForward, Pause, Play, RotateCcw, SkipBack } from '@lucide/vue'
 import type { SimulationEvent, SimulationRun } from '@/shared/document'
+import type { ViolationContact } from '@/features/goals'
 import { formatSeconds } from '@/shared/time'
 
-defineProps<{
+const props = defineProps<{
   run: SimulationRun | null; events: SimulationEvent[]; time: number; playing: boolean
-  currentEvent: SimulationEvent | null; stale: boolean
+  currentEvent: SimulationEvent | null; stale: boolean; violations: ViolationContact[]
 }>()
 const emit = defineEmits<{ toggle: []; seek: [number]; restart: []; event: [string] }>()
 const iconFor = (kind: SimulationEvent['kind']) => kind === 'interrupted' ? AlertTriangle
   : kind === 'mechanism' ? FastForward : CheckCircle2
+const violationIds = computed(() => new Set(props.violations.map(contact => contact.eventId)))
 </script>
 
 <template>
@@ -37,15 +40,28 @@ const iconFor = (kind: SimulationEvent['kind']) => kind === 'interrupted' ? Aler
       <div class="event-list-heading"><span>事件轨迹</span><span>{{ events.length }} EVENTS</span></div>
       <ol class="event-list">
         <li v-for="event in events" :key="event.id">
-          <button class="event-row" :class="{ current: currentEvent?.id === event.id, interrupted: event.kind === 'interrupted' }"
+          <button class="event-row" :class="{ current: currentEvent?.id === event.id, interrupted: event.kind === 'interrupted', violation: violationIds.has(event.id) }"
             :aria-current="currentEvent?.id === event.id ? 'step' : undefined" @click="emit('event', event.id)">
             <span class="event-time mono">{{ formatSeconds(event.time) }}</span>
             <span class="event-icon"><component :is="iconFor(event.kind)" :size="14" /></span>
             <span class="event-copy"><strong>{{ run.events.find(item => item.id === event.id)?.pieceId === run.startPieceId ? '启动点' : event.detail.split(' · ')[0] }}</strong><small>{{ event.detail.split(' · ')[1] ?? event.pieceId }}</small></span>
             <span v-if="event.kind === 'interrupted'" class="event-flag">中断</span>
+            <span v-else-if="violationIds.has(event.id)" class="event-flag violation-flag">约束</span>
           </button>
         </li>
       </ol>
+      <div v-if="violations.length" class="violation-section">
+        <div class="event-list-heading"><span>违反约束的触点</span><span>{{ violations.length }} CONTACTS</span></div>
+        <ol class="violation-list">
+          <li v-for="contact in violations" :key="contact.eventId + contact.reason">
+            <button class="violation-row" :aria-label="'定位触点 ' + contact.label" @click="emit('event', contact.eventId)">
+              <span class="event-time mono">{{ formatSeconds(contact.time) }}</span>
+              <span class="event-copy"><strong>{{ contact.label }}</strong><small>{{ contact.reason }}</small></span>
+              <span class="violation-locate"><Crosshair :size="13" /></span>
+            </button>
+          </li>
+        </ol>
+      </div>
       <div v-if="run.interruptedPieceId" class="interruption-card">
         <span class="interrupt-icon"><AlertTriangle :size="16" /></span>
         <div><strong>中断位置</strong><p>{{ run.events.find(event => event.kind === 'interrupted')?.pieceId }} 未触及下一件元件。返回场景调整间距或方向，再次模拟。</p></div>

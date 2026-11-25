@@ -6,12 +6,18 @@ import { MechanismPanel } from '@/features/mechanisms'
 import { ScenePanel } from '@/features/scene'
 import { SimulationBar } from '@/features/simulation'
 import { ReplayPanel } from '@/features/replay'
+import { GoalsPanel } from '@/features/goals'
 import { useWorkspace } from './useWorkspace'
 
 const {
-  document, saveState, focusPieceId, layout, mechanisms, scene, simulation, review, place, move, focusEvent,
+  document, saveState, focusPieceId, layout, mechanisms, scene, simulation, review, goals, goalReport,
+  place, move, focusEvent,
 } = useWorkspace()
 const saveLabel = computed(() => saveState.value === 'saved' ? '已保存' : saveState.value === 'saving' ? '保存中' : '尚未保存')
+const sharedPieceIds = computed(() => goalReport.value.shared.map(piece => piece.pieceId))
+const sensitivePieceIds = computed(() => goalReport.value.shared
+  .filter(piece => piece.sensitivity?.sensitive)
+  .map(piece => piece.pieceId))
 </script>
 
 <template>
@@ -44,10 +50,14 @@ const saveLabel = computed(() => saveState.value === 'saved' ? '已保存' : sav
           <div class="revision-chip"><Dot :size="19" />修订 {{ document.revision.toString().padStart(2, '0') }}</div>
         </div>
         <BuildCanvas :document="document" :active-tool="layout.activeTool.value" :selected-id="layout.selectedId.value"
-          :run="simulation.run.value" :focus-piece-id="focusPieceId" @place="place" @select="layout.select"
-          @move="move" />
+          :run="simulation.run.value" :focus-piece-id="focusPieceId" :shared-ids="sharedPieceIds"
+          :sensitive-ids="sensitivePieceIds" @place="place" @select="layout.select" @move="move" />
         <SimulationBar :run="simulation.run.value" :stale="simulation.stale.value" :busy="simulation.busy.value"
           :issue="simulation.issue.value" @run="simulation.simulate" @reset="simulation.clear" />
+        <GoalsPanel :document="document" :report="goalReport"
+          @add-window="goals.addWindow" @update-window="goals.updateWindow" @remove-window="goals.removeWindow"
+          @add-order="goals.addOrder" @update-order="goals.updateOrder" @remove-order="goals.removeOrder"
+          @select-piece="layout.select" />
         <div class="center-footer">
           <span><Cloud :size="13" /> 本机自动保存</span><span class="footer-divider">/</span>
           <span>摆放 {{ document.pieces.length }} 件 · 连线 {{ document.connections.length }} 条</span>
@@ -60,6 +70,7 @@ const saveLabel = computed(() => saveState.value === 'saved' ? '已保存' : sav
         <div class="rail-divider"></div>
         <ReplayPanel :run="simulation.run.value" :events="review.events.value" :time="review.time.value"
           :playing="review.playing.value" :current-event="review.currentEvent.value" :stale="simulation.stale.value"
+          :violations="goalReport.violations"
           @toggle="review.toggle" @seek="review.seek" @restart="review.restart" @event="focusEvent" />
       </aside>
     </main>

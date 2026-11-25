@@ -24,6 +24,7 @@ export function useSimulation(document: Ref<DominoDocument>) {
         startPieceId: snapshot.startPieceId,
         status: result.status,
         events: result.events,
+        contacts: result.contacts,
         interruptedPieceId: result.interruptedPieceId,
         interruptionReason: result.interruptionReason,
         duration: result.duration,

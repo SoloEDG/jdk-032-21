@@ -1,13 +1,28 @@
-import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import type { DominoDocument } from '@/shared/document'
+import { onBeforeUnmount, onMounted, computed, ref, shallowRef, watch } from 'vue'
+import type { DominoDocument, GoalSet } from '@/shared/document'
 import { createDefaultDocument } from '@/shared/defaults'
 import { useLayout } from '@/features/layout'
 import { useMechanisms } from '@/features/mechanisms'
 import { useScene, clampToScene } from '@/features/scene'
 import { useSimulation } from '@/features/simulation'
 import { useReview } from '@/features/replay'
+import { buildGoalReport, useGoals } from '@/features/goals'
 
 const storageKey = 'chainline-jdk032-project-v1'
+
+function normalizeGoals(parsed: DominoDocument): GoalSet {
+  const ids = new Set(parsed.pieces.map(piece => piece.id))
+  const goals = parsed.goals
+  const windows = Array.isArray(goals?.windows)
+    ? goals.windows.filter(window => window && ids.has(window.pieceId)
+      && Number.isFinite(window.min) && Number.isFinite(window.max))
+    : []
+  const orders = Array.isArray(goals?.orders)
+    ? goals.orders.filter(order => order && ids.has(order.beforeId) && ids.has(order.afterId)
+      && Number.isFinite(order.margin))
+    : []
+  return { windows, orders }
+}
 
 function loadProject() {
   try {
@@ -15,6 +30,7 @@ function loadProject() {
     if (!saved) return createDefaultDocument()
     const parsed = JSON.parse(saved) as DominoDocument
     if (!Array.isArray(parsed.pieces) || !Array.isArray(parsed.connections) || !parsed.scene) return createDefaultDocument()
+    parsed.goals = normalizeGoals(parsed)
     return parsed
   } catch {
     return createDefaultDocument()
@@ -36,11 +52,20 @@ export function useWorkspace() {
     saveState.value = 'unsaved'
   }
 
+  // 目标改动不顶版号：只触发保存，判定沿用当前运行结果实时重算；
+  // 几何改动走 changed() 顶版号，旧运行随即过期，必须重新模拟核对。
+  function touch() {
+    document.value = { ...document.value, updatedAt: Date.now() }
+    saveState.value = 'unsaved'
+  }
+
   const layout = useLayout(document, changed)
   const mechanisms = useMechanisms(document, changed)
   const scene = useScene(document, changed)
   const simulation = useSimulation(document)
   const review = useReview(simulation.run)
+  const goals = useGoals(document, touch)
+  const goalReport = computed(() => buildGoalReport(document.value, simulation.run.value, simulation.stale.value))
 
   watch(document, next => {
     saveState.value = 'saving'
@@ -93,5 +118,5 @@ export function useWorkspace() {
     window.clearTimeout(saveTimer)
   })
 
-  return { document, saveState, focusPieceId, layout, mechanisms, scene, simulation, review, place, move, focusEvent }
+  return { document, saveState, focusPieceId, layout, mechanisms, scene, simulation, review, goals, goalReport, place, move, focusEvent }
 }

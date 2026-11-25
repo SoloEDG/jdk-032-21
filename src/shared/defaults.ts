@@ -20,6 +20,7 @@ export function createDefaultDocument(): DominoDocument {
     domino('d9', 15.2, 4.05, 0, '12'),
     domino('d10', 16.8, 4.05, 0, '13'),
     { ...domino('t1', 18.4, 2.3, 0, '终点 A'), kind: 'trigger', width: 0.7 },
+    { ...domino('t2', 18.4, 4.05, 0, '终点 B'), kind: 'trigger', width: 0.7 },
   ]
   return {
     id: 'chainline-starter',
@@ -33,5 +34,14 @@ export function createDefaultDocument(): DominoDocument {
     ],
     scene: { gravity: 9.8, friction: 0.62, width: 21, height: 9, showGrid: true },
     startPieceId: 'd1',
+    goals: {
+      windows: [
+        { id: 'gw-a', pieceId: 't1', min: 2.5, max: 3.5 },
+        { id: 'gw-b', pieceId: 't2', min: 2.5, max: 3.5 },
+      ],
+      orders: [
+        { id: 'go-ab', beforeId: 't1', afterId: 't2', margin: 0 },
+      ],
+    },
   }
 }

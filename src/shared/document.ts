@@ -33,6 +33,25 @@ export interface SceneSettings {
   showGrid: boolean
 }
 
+export interface GoalWindow {
+  id: string
+  pieceId: string
+  min: number
+  max: number
+}
+
+export interface GoalOrder {
+  id: string
+  beforeId: string
+  afterId: string
+  margin: number
+}
+
+export interface GoalSet {
+  windows: GoalWindow[]
+  orders: GoalOrder[]
+}
+
 export interface DominoDocument {
   id: string
   title: string
@@ -42,6 +61,7 @@ export interface DominoDocument {
   connections: MechanismConnection[]
   scene: SceneSettings
   startPieceId: string
+  goals: GoalSet
 }
 
 export interface SimulationEvent {
@@ -53,6 +73,23 @@ export interface SimulationEvent {
   detail: string
 }
 
+export interface ContactAlternative {
+  pieceId: string
+  distance: number
+  alignment: number
+}
+
+export interface ContactRecord {
+  pieceId: string
+  eventId: string
+  targetId: string | null
+  via: 'geometry' | 'connection' | 'none'
+  reach: number | null
+  cone: number | null
+  chosen: ContactAlternative | null
+  alternatives: ContactAlternative[]
+}
+
 export interface SimulationRun {
   id: string
   documentId: string
@@ -61,6 +98,7 @@ export interface SimulationRun {
   startPieceId: string
   status: 'complete' | 'interrupted' | 'empty'
   events: SimulationEvent[]
+  contacts: ContactRecord[]
   interruptedPieceId: string | null
   interruptionReason: string | null
   duration: number
